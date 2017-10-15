@@ -1,0 +1,103 @@
+---
+title: "Prediction_assignment"
+author: "Kinschi"
+date: "15 Oktober 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Building the prediction model
+
+The goal of the project is to predict the manner in which they did the excercise. This is the "classe" variable in the training set.
+
+We will build one model based on random forests and one model based on decision trees and select the model with highest accuracy for predicting 20 different test cases.
+
+The expected out of sample error will be 1 minus the accuracy.
+
+Cross validation will be used subsetting the training set into 2 parts (subtraining data set as 70% of the training set and testing data as 30% of the training data set)
+
+## Loading the necessary packages
+
+```{r}
+library(caret)
+library(randomForest)
+library(rpart)
+```
+
+## Loading the data, exploring and cleaning cleaning the data
+
+```{r}
+trainUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+training <- read.csv(url(trainUrl), na.strings=c("NA","#DIV/0!",""))
+testing <- read.csv(url(testUrl), na.strings=c("NA","#DIV/0!",""))
+```
+
+Splitting the data training set into 2 subsamples (for cross-validation):
+```{r}
+inTrain <- createDataPartition(training$classe, p = 0.7, list = FALSE)
+subtraining <- training[inTrain, ]
+subtesting <- training[-inTrain, ]
+```
+
+We also remove the first 7 columns (metadata and irrelevant for the prediction):
+```{r}
+training <- training[,-(1:7)]
+testing  <- testing [,-(1:7)]
+subtraining <- subtraining[,-(1:7)]
+subtesting  <- subtesting [,-(1:7)]
+```
+
+As there are a lot of colums with many NA's we will exclude the columns with more than 60% NA's from our data:
+```{r}
+training <- training[,!sapply(training, function(x) sum(is.na(x))/length(x))>0.6]
+testing <- testing[,!sapply(testing, function(x) sum(is.na(x))/length(x))>0.6]
+subtraining <- subtraining[,!sapply(subtraining, function(x) sum(is.na(x))/length(x))>0.6]
+subtesting  <- subtesting[,!sapply(subtesting, function(x) sum(is.na(x))/length(x))>0.6]
+```
+
+## Modeling (Random Forests)
+
+```{r}
+modFit_rf <- randomForest(classe ~., data = subtraining)
+
+pred_rf <- predict(modFit_rf, subtesting)
+
+cm_rf <- confusionMatrix(pred_rf, subtesting$classe)
+print(cm_rf)
+```
+
+The accuracy of the model is 99%, the expected out of sample error 1%.
+
+```{r}
+plot(modFit_rf)
+```
+
+## Modeling (Decision Tree)
+
+```{r}
+modFit_dt <- rpart(classe ~., data = subtraining, method = "class")
+
+pred_dt <- predict(modFit_dt, subtesting, type = "class")
+
+cm_dt <- confusionMatrix(pred_dt, subtesting$classe)
+print(cm_dt)
+```
+
+The accuracy of the model is 68%, the expected out of sample error 32%.
+
+## Conclusion and final prediction
+
+Due to the higher accuracy of the model built using random forests, we weill use this model to predict:
+```{r}
+finalPred <- predict(modFit_rf, testing, type = "class")
+print(finalPred)
+```
